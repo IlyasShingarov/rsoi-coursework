@@ -1,0 +1,80 @@
+version: "3"
+services:
+  postgres:
+    image: library/postgres:13
+    container_name: postgres-3
+    restart: on-failure
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./postgres/:/docker-entrypoint-initdb.d/
+    ports:
+      - "5432:5432"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin_password
+      - DB_VENDOR=h2
+      - KEYCLOAK_LOGLEVEL=WARN
+      - PROXY_ADDRESS_FORWARDING=true
+    ports:
+      - "8088:8080"
+    command: >
+      start-dev
+      --hostname-strict=false
+    volumes:
+      - ./keycloak_data:/opt/keycloak/data
+
+  cars:
+    image: cars
+    build: CarService/
+    ports:
+      - "8070:8070"
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/cars"
+      DB_USERNAME: "program"
+      DB_PASSWORD: "test"
+    depends_on:
+      - postgres
+
+  rental:
+    image: rental
+    build: RentalService/
+    ports: 
+      - "8060:8060"
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/rentals"
+      DB_USERNAME: "program"
+      DB_PASSWORD: "test"
+    depends_on:
+      - postgres
+
+  payment:
+    image: payment
+    build: PaymentService/
+    ports:
+      - "8050:8050"
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/payments"
+      DB_USERNAME: "program"
+      DB_PASSWORD: "test"
+    depends_on:
+      - postgres
+
+  gateway:
+    image: gateway
+    build: GatewayService/
+    ports:
+      - "8080:8080"
+    depends_on:
+      - cars
+      - rental
+      - payment
+      
+volumes:
+  db-data:
